@@ -3,6 +3,7 @@ package de.maxhenkel.voicechat.plugins.impl.opus;
 import org.concentus.OpusApplication;
 import org.concentus.OpusEncoder;
 import de.maxhenkel.opus4j.OpusEncoder.Application;
+import org.concentus.SignalType;
 
 public class JavaOpusEncoderImpl implements de.maxhenkel.voicechat.api.opus.OpusEncoder {
 
@@ -25,13 +26,19 @@ public class JavaOpusEncoderImpl implements de.maxhenkel.voicechat.api.opus.Opus
             return;
         }
         try {
-            opusEncoder = new OpusEncoder(sampleRate, 1, getApplication(application));
-            opusEncoder.setUseInbandFEC(true);
-            opusEncoder.setPacketLossPercent(5);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to create Opus encoder", e);
-        }
-    }
+    opusEncoder = new OpusEncoder(sampleRate, 1, getApplication(application));
+    opusEncoder.setBitrate(128000);
+    opusEncoder.setComplexity(10);
+    opusEncoder.setUseInbandFEC(false);
+    opusEncoder.setPacketLossPercent(0);
+    
+    // ВОТ ЭТИ ДВЕ СТРОКИ — САМЫЕ ВАЖНЫЕ:
+    opusEncoder.setVBR(false);               // Отключаем переменный битрейт
+    opusEncoder.setSignalType(SignalType.SIGNAL_MUSIC); // Говорим кодеру: "это музыка, а не голос"
+    
+} catch (Exception e) {
+    throw new IllegalStateException("Failed to create Opus encoder", e);
+}
 
     @Override
     public byte[] encode(short[] rawAudio) {
