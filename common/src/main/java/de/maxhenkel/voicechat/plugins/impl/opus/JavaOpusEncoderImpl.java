@@ -1,97 +1,26 @@
-package de.maxhenkel.voicechat.plugins.impl.opus;
-
-import org.concentus.OpusApplication;
-import org.concentus.OpusEncoder;
-import de.maxhenkel.opus4j.OpusEncoder.Application;
-import org.concentus.SignalType;
-
-public class JavaOpusEncoderImpl implements de.maxhenkel.voicechat.api.opus.OpusEncoder {
-
-    protected OpusEncoder opusEncoder;
-    protected byte[] buffer;
-    protected int sampleRate;
-    protected int frameSize;
-    protected Application application;
-
-    public JavaOpusEncoderImpl(int sampleRate, int frameSize, int maxPayloadSize, Application application) {
-        this.sampleRate = sampleRate;
-        this.frameSize = frameSize;
-        this.application = application;
-        this.buffer = new byte[maxPayloadSize];
-        open();
+private void open() {
+    if (opusEncoder != null) {
+        return;
     }
+    try {
+        opusEncoder = new OpusEncoder(sampleRate, 1, getApplication(application));
 
-    private void open() {
-        if (opusEncoder != null) {
-            return;
-        }
-        try {
-    opusEncoder = new OpusEncoder(sampleRate, 1, getApplication(application));
-    opusEncoder.setBitrate(128000);
-    opusEncoder.setComplexity(10);
-    opusEncoder.setUseInbandFEC(false);
-    opusEncoder.setPacketLossPercent(0);
-    
-    // ВОТ ЭТИ ДВЕ СТРОКИ — САМЫЕ ВАЖНЫЕ:
-    opusEncoder.setVBR(false);               // Отключаем переменный битрейт
-    opusEncoder.setSignalType(SignalType.SIGNAL_MUSIC); // Говорим кодеру: "это музыка, а не голос"
-    
-} catch (Exception e) {
-    throw new IllegalStateException("Failed to create Opus encoder", e);
-}
+        // --- НАСТРОЙКА ДЛЯ МУЗЫКИ (отключаем голосовой режим) ---
+        // 1. Форсируем CELT (музыкальный режим, без SILK)
+        opusEncoder.setForceMode(OpusMode.MODE_CELT_ONLY);
+        // 2. Форсируем полную полосу 20 кГц (убирает "глухость" на тихих местах)
+        opusEncoder.setBandwidth(OpusBandwidth.OPUS_BANDWIDTH_FULLBAND);
+        // 3. Поднимаем битрейт (96-128 kbps для музыки)
+        opusEncoder.setBitrate(128000);
+        // 4. Отключаем DTX (прерывистую передачу, которая дает артефакты на музыке)
+        opusEncoder.setUseDTX(false);
+        // 5. Отключаем FEC (если ты еще этого не сделал в других местах)
+        opusEncoder.setUseInbandFEC(false);
+        opusEncoder.setPacketLossPercent(0);
+        // 6. Указываем, что сигнал — музыка (если метод есть)
+        // opusEncoder.setSignalType(OpusSignal.OPUS_SIGNAL_MUSIC);
 
-    @Override
-    public byte[] encode(short[] rawAudio) {
-        if (isClosed()) {
-            throw new IllegalStateException("Encoder is closed");
-        }
-
-        int result;
-        try {
-            result = opusEncoder.encode(rawAudio, 0, frameSize, buffer, 0, buffer.length);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to encode audio", e);
-        }
-
-        if (result < 0) {
-            throw new RuntimeException("Failed to encode audio data");
-        }
-
-        byte[] audio = new byte[result];
-        System.arraycopy(buffer, 0, audio, 0, result);
-        return audio;
-    }
-
-    @Override
-    public void resetState() {
-        if (isClosed()) {
-            throw new IllegalStateException("Encoder is closed");
-        }
-        opusEncoder.resetState();
-    }
-
-    @Override
-    public boolean isClosed() {
-        return opusEncoder == null;
-    }
-
-    @Override
-    public void close() {
-        if (isClosed()) {
-            return;
-        }
-        opusEncoder = null;
-    }
-
-    public static OpusApplication getApplication(Application application) {
-        switch (application) {
-            case VOIP:
-            default:
-                return OpusApplication.OPUS_APPLICATION_VOIP;
-            case AUDIO:
-                return OpusApplication.OPUS_APPLICATION_AUDIO;
-            case LOW_DELAY:
-                return OpusApplication.OPUS_APPLICATION_RESTRICTED_LOWDELAY;
-        }
+    } catch (Exception e) {
+        throw new IllegalStateException("Failed to create Opus encoder", e);
     }
 }
